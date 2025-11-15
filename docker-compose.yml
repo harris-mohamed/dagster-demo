@@ -1,0 +1,139 @@
+services:
+  # Central Supabase Database
+  supabase-db:
+    image: supabase/postgres:15.1.0.147
+    container_name: supabase-db
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - supabase-data:/var/lib/postgresql/data
+      - ./supabase/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - dagster-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MySQL Endpoint (Accelerometer data)
+  mysql-endpoint:
+    image: mysql:8.0
+    container_name: mysql-endpoint
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: sensors
+      MYSQL_USER: sensoruser
+      MYSQL_PASSWORD: sensorpass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./endpoints/mysql-endpoint/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - dagster-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MySQL Data Generator
+  mysql-generator:
+    build:
+      context: ./endpoints/mysql-endpoint
+      dockerfile: Dockerfile.generator
+    container_name: mysql-generator
+    depends_on:
+      mysql-endpoint:
+        condition: service_healthy
+    networks:
+      - dagster-network
+
+  # PostgreSQL Endpoint (Accelerometer + Magnetometer data)
+  postgres-endpoint:
+    image: postgres:15
+    container_name: postgres-endpoint
+    environment:
+      POSTGRES_DB: sensors
+      POSTGRES_USER: sensoruser
+      POSTGRES_PASSWORD: sensorpass
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./endpoints/postgres-endpoint/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - dagster-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sensoruser -d sensors"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL Data Generator
+  postgres-generator:
+    build:
+      context: ./endpoints/postgres-endpoint
+      dockerfile: Dockerfile.generator
+    container_name: postgres-generator
+    depends_on:
+      postgres-endpoint:
+        condition: service_healthy
+    networks:
+      - dagster-network
+
+  # File-based Endpoint (XML/KMZ/Images)
+  file-endpoint:
+    build:
+      context: ./endpoints/file-endpoint
+    container_name: file-endpoint
+    volumes:
+      - .:/data
+    networks:
+      - dagster-network
+    ports:
+      - "8000:8000"
+
+  # Dagster
+  dagster:
+    build:
+      context: ./dagster
+    container_name: dagster
+    environment:
+      DAGSTER_POSTGRES_HOST: supabase-db
+      DAGSTER_POSTGRES_USER: postgres
+      DAGSTER_POSTGRES_PASSWORD: postgres
+      DAGSTER_POSTGRES_DB: postgres
+      SUPABASE_HOST: supabase-db
+      SUPABASE_PORT: 5432
+      SUPABASE_USER: postgres
+      SUPABASE_PASSWORD: postgres
+      SUPABASE_DB: postgres
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./dagster/dagster_etl:/opt/dagster/dagster_etl
+      - .:/data
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+      mysql-endpoint:
+        condition: service_healthy
+      postgres-endpoint:
+        condition: service_healthy
+    networks:
+      - dagster-network
+
+volumes:
+  supabase-data:
+  mysql-data:
+  postgres-data:
+
+networks:
+  dagster-network:
+    driver: bridge

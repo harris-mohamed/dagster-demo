@@ -1,0 +1,7 @@
+dagster==1.5.12
+dagster-webserver==1.5.12
+dagster-postgres==0.21.12
+psycopg2-binary==2.9.9
+mysql-connector-python==8.2.0
+requests==2.31.0
+lxml==5.1.0

@@ -1,0 +1,11 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install MySQL connector
+RUN pip install mysql-connector-python
+
+# Copy data generator script
+COPY data-generator.py .
+
+CMD ["python", "data-generator.py"]
