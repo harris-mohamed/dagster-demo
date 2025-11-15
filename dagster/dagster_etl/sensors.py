@@ -17,7 +17,7 @@ def endpoint_monitor_sensor(context: SensorEvaluationContext, supabase: Supabase
     try:
         # Query active endpoints
         query = """
-            SELECT id, ip_address, port, name, chunk_size, endpoint_type, database_name
+            SELECT id, ip_address, port, name, chunk_size, max_chunks_per_run, endpoint_type, database_name
             FROM ingest_control
             WHERE active = true
             ORDER BY id
@@ -53,7 +53,8 @@ def endpoint_monitor_sensor(context: SensorEvaluationContext, supabase: Supabase
                 "endpoint_host": endpoint['ip_address'],
                 "endpoint_port": str(endpoint['port']),
                 "endpoint_type": endpoint_type,
-                "chunk_size": str(endpoint['chunk_size'])
+                "chunk_size": str(endpoint['chunk_size']),
+                "max_chunks_per_run": str(endpoint['max_chunks_per_run'])
             }
 
             # Add database name for database endpoints

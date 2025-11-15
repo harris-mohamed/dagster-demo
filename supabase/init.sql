@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS ingest_control (
     port INTEGER NOT NULL,
     name VARCHAR(255) NOT NULL,
     chunk_size INTEGER DEFAULT 100,
+    max_chunks_per_run INTEGER DEFAULT 20, -- max chunks to process in single run for backfill
     active BOOLEAN DEFAULT false,
     endpoint_type VARCHAR(50) NOT NULL, -- 'mysql', 'postgres', 'file'
     database_name VARCHAR(100), -- for database endpoints
@@ -52,10 +53,10 @@ CREATE TABLE IF NOT EXISTS file_metadata (
 );
 
 -- Insert sample ingest control records
-INSERT INTO ingest_control (ip_address, port, name, chunk_size, active, endpoint_type, database_name) VALUES
-('mysql-endpoint', 3306, 'MySQL Accelerometer Sensor', 50, true, 'mysql', 'sensors'),
-('postgres-endpoint', 5432, 'PostgreSQL Accel+Mag Sensor', 50, true, 'postgres', 'sensors'),
-('file-endpoint', 8000, 'File-based Camera System', 10, true, 'file', NULL);
+INSERT INTO ingest_control (ip_address, port, name, chunk_size, max_chunks_per_run, active, endpoint_type, database_name) VALUES
+('mysql-endpoint', 3306, 'MySQL Accelerometer Sensor', 50, 20, true, 'mysql', 'sensors'),
+('postgres-endpoint', 5432, 'PostgreSQL Accel+Mag Sensor', 50, 20, true, 'postgres', 'sensors'),
+('file-endpoint', 8000, 'File-based Camera System', 10, 50, true, 'file', NULL);
 
 -- Create indexes for better query performance
 CREATE INDEX idx_accelerometer_timestamp ON accelerometer_data(timestamp);
