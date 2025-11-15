@@ -3,9 +3,10 @@
 ## 1. Start the Demo
 
 ```bash
-cd /home/harris/dev/dagster_demo
 docker-compose up --build
 ```
+
+(Run from the `dagster-demo` directory)
 
 Wait for all containers to start (about 30-60 seconds). You'll see output from:
 - `supabase-db` - Central database
@@ -161,12 +162,84 @@ docker-compose down -v
 - Ensure Docker has enough resources (4GB+ RAM recommended)
 - View specific container logs: `docker-compose logs <service-name>`
 
+## 8. Testing Backfill & Catch-Up Detection
+
+The quickstart above demonstrates real-time incremental ingestion. To test the **multi-chunk backfill** feature for endpoints with historical data, use the automated test script:
+
+```bash
+./test-backfill.sh
+```
+
+### What This Script Does
+
+1. **Starts only endpoint services** (databases + generators) without Dagster
+2. **Accumulates data** for a configurable duration (default: 2 minutes)
+3. **Shows accumulated counts** (MySQL records, Postgres records, file folders)
+4. **Starts Dagster** to begin processing the backlog
+5. **Monitors logs** showing multi-chunk processing in action
+
+### What You'll Observe
+
+When Dagster starts processing the accumulated data, you'll see:
+
+```
+Configuration: chunk_size=50, max_chunks_per_run=20
+Starting from ID: 0
+Chunk 1/20: Inserted 50 records (total: 50, last_id: 50)
+Chunk 2/20: Inserted 50 records (total: 100, last_id: 100)
+Chunk 3/20: Inserted 50 records (total: 150, last_id: 150)
+...
+Chunk 18/20: Inserted 50 records (total: 900, last_id: 900)
+Chunk 19/20: Inserted 42 records (total: 942, last_id: 942)
+Caught up! Received 42 records (less than chunk_size=50)
+Successfully ingested 942 measurements across 19 chunks
+ID range: 0 -> 942 (942 IDs processed)
+```
+
+This demonstrates:
+- **Multi-chunk processing**: Processing 19 chunks in a single run instead of 19 separate runs
+- **Catch-up detection**: Automatically detects when caught up (received < chunk_size)
+- **Progress tracking**: Shows ID ranges and total records processed
+
+### Script Options
+
+```bash
+# Clean up before starting (removes existing data)
+./test-backfill.sh --clean
+
+# Default run (accumulates data for 2 minutes)
+./test-backfill.sh
+
+# Custom duration can be entered interactively when prompted
+```
+
+### Manual Testing Alternative
+
+If you prefer manual control:
+
+```bash
+# 1. Start endpoints only
+docker-compose up -d supabase-db mysql-endpoint mysql-generator postgres-endpoint postgres-generator file-endpoint
+
+# 2. Wait 3-5 minutes for data to accumulate
+
+# 3. Check accumulated data
+docker exec mysql-endpoint mysql -u sensoruser -psensorpass -D sensors -e "SELECT COUNT(*) FROM measurements"
+
+# 4. Start Dagster
+docker-compose up -d dagster
+
+# 5. Watch the backfill
+docker-compose logs -f dagster
+```
+
 ## Next Steps
 
 1. Explore the code in `dagster/dagster_etl/`
 2. Add a new endpoint to `ingest_control`
-3. Modify chunk sizes to see different ingestion patterns
-4. Check the Dagster sensor evaluation logs
-5. Review the asset metadata after materializations
+3. Modify `chunk_size` and `max_chunks_per_run` to see different ingestion patterns
+4. Test with longer accumulation periods (10-15 minutes) to see multiple sensor cycles
+5. Check the Dagster sensor evaluation logs
+6. Review the asset metadata after materializations
 
 Enjoy exploring Dagster as an ETL sensor platform!
